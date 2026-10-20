@@ -21,6 +21,19 @@ do projeto.
   checagem no serviço, porque a checagem sozinha tem corrida
 - D-05: chave de gerenciamento da DC-03 armazenada como hash, nunca em texto puro
 
+## Dependências
+- Microsoft.EntityFrameworkCore.Sqlite: provedor do EF Core para SQLite,
+  exigido pela constituição e pela D-01
+- Microsoft.EntityFrameworkCore.Design: necessário para gerar e aplicar
+  migrações com dotnet ef; referenciado com PrivateAssets=all, não vai para
+  o runtime
+- SQLitePCLRaw.lib.e_sqlite3 2.1.14: fixado explicitamente porque a versão
+  2.1.11, trazida de forma transitiva pelo EF Core Sqlite 10.0.10, embute um
+  SQLite com vulnerabilidade de gravidade alta (CVE-2025-6965,
+  GHSA-2m69-gcr7-jv3q, afeta <= 2.1.11); a 2.1.14 é a última da série 2.x,
+  compatível com os demais pacotes SQLitePCLRaw 2.1.x usados pelo EF Core;
+  pode ser removido quando o EF Core passar a depender de versão corrigida
+
 ## Modelo de dados
 Link
 - Id, Code (único), TargetUrl, CreatedAtUtc, ExpiresAtUtc (nulo), AccessCount,
