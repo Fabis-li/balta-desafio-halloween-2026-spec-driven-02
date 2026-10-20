@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LinkShortener.Api/LinkShortener.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LinkShortener.Tests/LinkShortener.Tests.csproj" />
+  </Folder>
+</Solution>
