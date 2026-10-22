@@ -33,6 +33,9 @@ do projeto.
   GHSA-2m69-gcr7-jv3q, afeta <= 2.1.11); a 2.1.14 é a última da série 2.x,
   compatível com os demais pacotes SQLitePCLRaw 2.1.x usados pelo EF Core;
   pode ser removido quando o EF Core passar a depender de versão corrigida
+- Microsoft.AspNetCore.Mvc.Testing 10.0.10 (só no projeto de testes): sobe a
+  API em memória com WebApplicationFactory para os testes de integração que a
+  constituição exige para todo endpoint; versão alinhada ao EF Core 10.0.10
 
 ## Modelo de dados
 Link

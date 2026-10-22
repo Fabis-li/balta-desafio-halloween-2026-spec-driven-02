@@ -1,0 +1,9 @@
+namespace LinkShortener.Api.Application;
+
+public interface ILinkRepository
+{
+    Task<bool> CodeExistsAsync(string code, CancellationToken cancellationToken);
+
+    // Retorna false quando o código já foi gravado por outra requisição (D-04)
+    Task<bool> TryAddAsync(Link link, CancellationToken cancellationToken);
+}
