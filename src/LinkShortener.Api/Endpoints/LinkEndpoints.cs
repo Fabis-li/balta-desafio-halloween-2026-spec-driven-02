@@ -13,13 +13,14 @@ public static class LinkEndpoints
         return app;
     }
 
-    private static async Task<Results<Created<CreateLinkResponse>, ValidationProblem>> CreateLinkAsync(
+    private static async Task<Results<Created<CreateLinkResponse>, ValidationProblem, ProblemHttpResult>> CreateLinkAsync(
         CreateLinkRequest request,
         LinkService linkService,
         HttpRequest httpRequest,
         CancellationToken cancellationToken)
     {
-        var result = await linkService.CreateAsync(request.TargetUrl, cancellationToken);
+        var result = await linkService.CreateAsync(
+            new CreateLinkCommand(request.TargetUrl, request.Code), cancellationToken);
 
         switch (result)
         {
@@ -32,8 +33,14 @@ public static class LinkEndpoints
             case CreateLinkResult.Invalid invalid:
                 return TypedResults.ValidationProblem(new Dictionary<string, string[]>
                 {
-                    ["targetUrl"] = [invalid.Error]
+                    [invalid.Field] = [invalid.Error]
                 });
+
+            case CreateLinkResult.CodeTaken:
+                return TypedResults.Problem(
+                    statusCode: StatusCodes.Status409Conflict,
+                    title: "Código em uso",
+                    detail: CreateLinkResult.CodeTaken.Error);
 
             default:
                 throw new UnreachableException();
@@ -41,6 +48,6 @@ public static class LinkEndpoints
     }
 }
 
-public record CreateLinkRequest(string? TargetUrl);
+public record CreateLinkRequest(string? TargetUrl, string? Code);
 
 public record CreateLinkResponse(string ShortUrl, string Code);

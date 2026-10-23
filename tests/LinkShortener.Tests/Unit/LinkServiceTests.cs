@@ -15,7 +15,7 @@ public class LinkServiceTests
     {
         var service = CreateService("ABC1234");
 
-        var result = await service.CreateAsync(ValidUrl, CancellationToken.None);
+        var result = await service.CreateAsync(new(ValidUrl), CancellationToken.None);
 
         var created = Assert.IsType<CreateLinkResult.Created>(result);
         var stored = Assert.Single(_repository.Links);
@@ -37,11 +37,77 @@ public class LinkServiceTests
     {
         var service = CreateService("ABC1234");
 
-        var result = await service.CreateAsync(url, CancellationToken.None);
+        var result = await service.CreateAsync(new(url), CancellationToken.None);
 
         var invalid = Assert.IsType<CreateLinkResult.Invalid>(result);
+        Assert.Equal(LinkService.TargetUrlField, invalid.Field);
         Assert.NotEmpty(invalid.Error);
         Assert.Empty(_repository.Links);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithCustomCode_StoresLinkWithThatCodeWithoutGenerating()
+    {
+        var generator = new SequenceCodeGenerator(["ABC1234"]);
+        var service = new LinkService(_repository, generator, new FixedTimeProvider(Now));
+
+        var created = Assert.IsType<CreateLinkResult.Created>(
+            await service.CreateAsync(new(ValidUrl, "PROMO"), CancellationToken.None));
+
+        Assert.Equal("PROMO", created.Link.Code);
+        Assert.Same(created.Link, Assert.Single(_repository.Links));
+        Assert.Equal(0, generator.Calls);
+    }
+
+    [Theory]
+    [InlineData("ABC", CodeValidator.LengthError)]
+    [InlineData("promo", CodeValidator.CharactersError)]
+    [InlineData("PROMO2026", CodeValidator.CharactersError)]
+    public async Task CreateAsync_WithInvalidCustomCode_ReturnsInvalidAndStoresNothing(string code, string expectedError)
+    {
+        var service = CreateService("ABC1234");
+
+        var result = await service.CreateAsync(new(ValidUrl, code), CancellationToken.None);
+
+        var invalid = Assert.IsType<CreateLinkResult.Invalid>(result);
+        Assert.Equal(LinkService.CodeField, invalid.Field);
+        Assert.Equal(expectedError, invalid.Error);
+        Assert.Empty(_repository.Links);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithInvalidUrlAndCustomCode_ReportsTheUrlFirst()
+    {
+        var service = CreateService("ABC1234");
+
+        var invalid = Assert.IsType<CreateLinkResult.Invalid>(
+            await service.CreateAsync(new("ftp://example.com", "promo"), CancellationToken.None));
+
+        Assert.Equal(LinkService.TargetUrlField, invalid.Field);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithCustomCodeInUse_ReturnsCodeTakenWithoutRetrying()
+    {
+        _repository.Links.Add(new Link { Code = "PROMO" });
+        var service = CreateService("ABC1234");
+
+        var result = await service.CreateAsync(new(ValidUrl, "PROMO"), CancellationToken.None);
+
+        Assert.IsType<CreateLinkResult.CodeTaken>(result);
+        Assert.Single(_repository.Links);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenCustomCodeIsTakenConcurrently_ReturnsCodeTaken()
+    {
+        _repository.CodesTakenOnInsert.Add("PROMO");
+        var service = CreateService("ABC1234");
+
+        var result = await service.CreateAsync(new(ValidUrl, "PROMO"), CancellationToken.None);
+
+        Assert.IsType<CreateLinkResult.CodeTaken>(result);
+        Assert.DoesNotContain(_repository.Links, link => link.TargetUrl == ValidUrl);
     }
 
     [Fact]
@@ -51,7 +117,7 @@ public class LinkServiceTests
         var service = CreateService("AAAAAAA", "BBBBBBB");
 
         var created = Assert.IsType<CreateLinkResult.Created>(
-            await service.CreateAsync(ValidUrl, CancellationToken.None));
+            await service.CreateAsync(new(ValidUrl), CancellationToken.None));
 
         Assert.Equal("BBBBBBB", created.Link.Code);
     }
@@ -63,7 +129,7 @@ public class LinkServiceTests
         var service = CreateService("AAAAAAA", "BBBBBBB");
 
         var created = Assert.IsType<CreateLinkResult.Created>(
-            await service.CreateAsync(ValidUrl, CancellationToken.None));
+            await service.CreateAsync(new(ValidUrl), CancellationToken.None));
 
         Assert.Equal("BBBBBBB", created.Link.Code);
     }
@@ -75,7 +141,7 @@ public class LinkServiceTests
         var service = CreateService("AAAAAAA");
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => service.CreateAsync(ValidUrl, CancellationToken.None));
+            () => service.CreateAsync(new(ValidUrl), CancellationToken.None));
     }
 
     private LinkService CreateService(params string[] codes) =>
@@ -83,10 +149,10 @@ public class LinkServiceTests
 
     private sealed class SequenceCodeGenerator(string[] codes) : ICodeGenerator
     {
-        private int _next;
+        public int Calls { get; private set; }
 
         // Repete o último código quando a sequência acaba
-        public string Generate() => codes[Math.Min(_next++, codes.Length - 1)];
+        public string Generate() => codes[Math.Min(Calls++, codes.Length - 1)];
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
