@@ -167,6 +167,20 @@ public class LinkServiceTests
         var result = await service.ResolveAsync(code, CancellationToken.None);
 
         Assert.IsType<ResolveLinkResult.NotFound>(result);
+        Assert.Equal(0, _repository.Links.Single().AccessCount);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_CountsEveryAccessIncludingRepeatedOnes()
+    {
+        var link = new Link { Code = "PROMO", TargetUrl = ValidUrl };
+        _repository.Links.Add(link);
+        var service = CreateService("ABC1234");
+
+        for (var i = 0; i < 3; i++)
+            await service.ResolveAsync("PROMO", CancellationToken.None);
+
+        Assert.Equal(3, link.AccessCount);
     }
 
     private LinkService CreateService(params string[] codes) =>
@@ -197,6 +211,14 @@ public class LinkServiceTests
 
         public Task<Link?> FindByCodeAsync(string code, CancellationToken cancellationToken) =>
             Task.FromResult(Links.SingleOrDefault(link => link.Code == code));
+
+        public Task IncrementAccessCountAsync(string code, CancellationToken cancellationToken)
+        {
+            foreach (var link in Links.Where(link => link.Code == code))
+                link.AccessCount++;
+
+            return Task.CompletedTask;
+        }
 
         public Task<bool> TryAddAsync(Link link, CancellationToken cancellationToken)
         {

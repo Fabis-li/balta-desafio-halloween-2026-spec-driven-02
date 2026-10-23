@@ -38,9 +38,13 @@ public class LinkService(ILinkRepository repository, ICodeGenerator codeGenerato
     {
         var link = await repository.FindByCodeAsync(code, cancellationToken);
 
-        return link is null
-            ? new ResolveLinkResult.NotFound()
-            : new ResolveLinkResult.Found(link.TargetUrl);
+        if (link is null)
+            return new ResolveLinkResult.NotFound();
+
+        // RF-05, RN-04: todo acesso válido conta, inclusive repetido ou automatizado
+        await repository.IncrementAccessCountAsync(code, cancellationToken);
+
+        return new ResolveLinkResult.Found(link.TargetUrl);
     }
 
     private async Task<CreateLinkResult> CreateWithCustomCodeAsync(
