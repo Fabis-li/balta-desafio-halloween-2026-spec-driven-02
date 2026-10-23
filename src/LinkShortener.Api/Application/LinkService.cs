@@ -6,14 +6,30 @@ public class LinkService(ILinkRepository repository, ICodeGenerator codeGenerato
 
     public const string TargetUrlField = "targetUrl";
     public const string CodeField = "code";
+    public const string ExpiresOnField = "expiresOn";
 
     public async Task<CreateLinkResult> CreateAsync(CreateLinkCommand command, CancellationToken cancellationToken)
     {
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+
         if (!TargetUrlValidator.IsValid(command.TargetUrl, out var error))
             return new CreateLinkResult.Invalid(TargetUrlField, error);
 
+        if (command.Code is not null && !CodeValidator.IsValid(command.Code, out error))
+            return new CreateLinkResult.Invalid(CodeField, error);
+
+        DateTime? expiresAtUtc = null;
+
+        if (command.ExpiresOn is not null)
+        {
+            if (!ExpirationDateParser.TryParse(command.ExpiresOn, nowUtc, out var parsed, out error))
+                return new CreateLinkResult.Invalid(ExpiresOnField, error);
+
+            expiresAtUtc = parsed;
+        }
+
         if (command.Code is not null)
-            return await CreateWithCustomCodeAsync(command.TargetUrl!, command.Code, cancellationToken);
+            return await CreateWithCustomCodeAsync(NewLink(command.Code, command.TargetUrl!, nowUtc, expiresAtUtc), cancellationToken);
 
         // RN-06: código automático já em uso gera outra tentativa
         for (var attempt = 0; attempt < MaxCodeAttempts; attempt++)
@@ -23,7 +39,7 @@ public class LinkService(ILinkRepository repository, ICodeGenerator codeGenerato
             if (await repository.CodeExistsAsync(code, cancellationToken))
                 continue;
 
-            var link = NewLink(code, command.TargetUrl!);
+            var link = NewLink(code, command.TargetUrl!, nowUtc, expiresAtUtc);
 
             if (await repository.TryAddAsync(link, cancellationToken))
                 return new CreateLinkResult.Created(link);
@@ -41,6 +57,10 @@ public class LinkService(ILinkRepository repository, ICodeGenerator codeGenerato
         if (link is null)
             return new ResolveLinkResult.NotFound();
 
+        // RN-03: link expirado não redireciona e não conta acesso
+        if (IsExpired(link.ExpiresAtUtc))
+            return new ResolveLinkResult.Expired();
+
         // RF-05, RN-04: todo acesso válido conta, inclusive repetido ou automatizado
         await repository.IncrementAccessCountAsync(code, cancellationToken);
 
@@ -57,17 +77,11 @@ public class LinkService(ILinkRepository repository, ICodeGenerator codeGenerato
             : new GetLinkStatsResult.Found(link.Code, link.AccessCount);
     }
 
-    private async Task<CreateLinkResult> CreateWithCustomCodeAsync(
-        string targetUrl, string code, CancellationToken cancellationToken)
+    private async Task<CreateLinkResult> CreateWithCustomCodeAsync(Link link, CancellationToken cancellationToken)
     {
-        if (!CodeValidator.IsValid(code, out var error))
-            return new CreateLinkResult.Invalid(CodeField, error);
-
         // RN-01: código próprio em uso é recusado, sem nova tentativa
-        if (await repository.CodeExistsAsync(code, cancellationToken))
+        if (await repository.CodeExistsAsync(link.Code, cancellationToken))
             return new CreateLinkResult.CodeTaken();
-
-        var link = NewLink(code, targetUrl);
 
         // D-04: o índice único pega quem gravou o mesmo código depois da checagem
         return await repository.TryAddAsync(link, cancellationToken)
@@ -75,11 +89,16 @@ public class LinkService(ILinkRepository repository, ICodeGenerator codeGenerato
             : new CreateLinkResult.CodeTaken();
     }
 
-    private Link NewLink(string code, string targetUrl) => new()
+    // D-09: válido enquanto agora < ExpiresAtUtc
+    private bool IsExpired(DateTime? expiresAtUtc) =>
+        expiresAtUtc is not null && timeProvider.GetUtcNow().UtcDateTime >= expiresAtUtc.Value;
+
+    private static Link NewLink(string code, string targetUrl, DateTime nowUtc, DateTime? expiresAtUtc) => new()
     {
         Id = Guid.NewGuid(),
         Code = code,
         TargetUrl = targetUrl,
-        CreatedAtUtc = timeProvider.GetUtcNow().UtcDateTime
+        CreatedAtUtc = nowUtc,
+        ExpiresAtUtc = expiresAtUtc
     };
 }

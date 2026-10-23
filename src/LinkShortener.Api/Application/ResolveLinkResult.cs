@@ -8,4 +8,9 @@ public abstract record ResolveLinkResult
     {
         public const string Error = "O link informado não existe.";
     }
+
+    public sealed record Expired : ResolveLinkResult
+    {
+        public const string Error = "O link informado expirou.";
+    }
 }

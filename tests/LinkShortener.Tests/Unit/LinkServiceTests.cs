@@ -10,6 +10,8 @@ public class LinkServiceTests
 
     private readonly FakeLinkRepository _repository = new();
 
+    private readonly ManualTimeProvider _clock = new(Now);
+
     [Fact]
     public async Task CreateAsync_WithValidUrl_StoresLinkWithGeneratedCode()
     {
@@ -49,7 +51,7 @@ public class LinkServiceTests
     public async Task CreateAsync_WithCustomCode_StoresLinkWithThatCodeWithoutGenerating()
     {
         var generator = new SequenceCodeGenerator(["ABC1234"]);
-        var service = new LinkService(_repository, generator, new FixedTimeProvider(Now));
+        var service = new LinkService(_repository, generator, _clock);
 
         var created = Assert.IsType<CreateLinkResult.Created>(
             await service.CreateAsync(new(ValidUrl, "PROMO"), CancellationToken.None));
@@ -207,8 +209,91 @@ public class LinkServiceTests
         Assert.IsType<GetLinkStatsResult.NotFound>(result);
     }
 
+    [Fact]
+    public async Task CreateAsync_WithExpirationDate_StoresStartOfNextDayInUtc()
+    {
+        var service = CreateService("ABC1234");
+
+        var created = Assert.IsType<CreateLinkResult.Created>(
+            await service.CreateAsync(new(ValidUrl, ExpiresOn: "2026-11-15"), CancellationToken.None));
+
+        Assert.Equal(new DateTime(2026, 11, 16, 0, 0, 0, DateTimeKind.Utc), created.Link.ExpiresAtUtc);
+        Assert.Equal(DateTimeKind.Utc, created.Link.ExpiresAtUtc!.Value.Kind);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithExpirationDateAndCustomCode_StoresBoth()
+    {
+        var service = CreateService("ABC1234");
+
+        var created = Assert.IsType<CreateLinkResult.Created>(
+            await service.CreateAsync(new(ValidUrl, "PROMO", "2026-11-15"), CancellationToken.None));
+
+        Assert.Equal("PROMO", created.Link.Code);
+        Assert.Equal(new DateTime(2026, 11, 16, 0, 0, 0, DateTimeKind.Utc), created.Link.ExpiresAtUtc);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithPastExpirationDate_ReturnsInvalidAndStoresNothing()
+    {
+        var service = CreateService("ABC1234");
+
+        var invalid = Assert.IsType<CreateLinkResult.Invalid>(
+            await service.CreateAsync(new(ValidUrl, ExpiresOn: "2026-10-30"), CancellationToken.None));
+
+        Assert.Equal(LinkService.ExpiresOnField, invalid.Field);
+        Assert.Equal(ExpirationDateParser.PastError, invalid.Error);
+        Assert.Empty(_repository.Links);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithInvalidCustomCodeAndPastDate_ReportsTheCodeFirst()
+    {
+        var service = CreateService("ABC1234");
+
+        var invalid = Assert.IsType<CreateLinkResult.Invalid>(
+            await service.CreateAsync(new(ValidUrl, "promo", "2020-01-01"), CancellationToken.None));
+
+        Assert.Equal(LinkService.CodeField, invalid.Field);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_UntilTheLastInstantOfTheExpirationDay_RedirectsAndCounts()
+    {
+        var link = new Link { Code = "PROMO", TargetUrl = ValidUrl, ExpiresAtUtc = new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc) };
+        _repository.Links.Add(link);
+        var service = CreateService("ABC1234");
+        _clock.Now = new DateTimeOffset(2026, 10, 31, 23, 59, 59, 999, TimeSpan.Zero);
+
+        Assert.IsType<ResolveLinkResult.Found>(await service.ResolveAsync("PROMO", CancellationToken.None));
+        Assert.Equal(1, link.AccessCount);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_AfterTheExpirationDay_ReturnsExpiredWithoutCounting()
+    {
+        var link = new Link { Code = "PROMO", TargetUrl = ValidUrl, ExpiresAtUtc = new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc) };
+        _repository.Links.Add(link);
+        var service = CreateService("ABC1234");
+        _clock.Now = new DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero);
+
+        Assert.IsType<ResolveLinkResult.Expired>(await service.ResolveAsync("PROMO", CancellationToken.None));
+        Assert.Equal(0, link.AccessCount);
+    }
+
+    [Fact]
+    public async Task GetStatsAsync_WithExpiredLink_StillReturnsTheTotal()
+    {
+        _repository.Links.Add(new Link { Code = "PROMO", AccessCount = 7, ExpiresAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc) });
+        var service = CreateService("ABC1234");
+
+        var found = Assert.IsType<GetLinkStatsResult.Found>(await service.GetStatsAsync("PROMO", CancellationToken.None));
+
+        Assert.Equal(7, found.AccessCount);
+    }
+
     private LinkService CreateService(params string[] codes) =>
-        new(_repository, new SequenceCodeGenerator(codes), new FixedTimeProvider(Now));
+        new(_repository, new SequenceCodeGenerator(codes), _clock);
 
     private sealed class SequenceCodeGenerator(string[] codes) : ICodeGenerator
     {
@@ -216,11 +301,6 @@ public class LinkServiceTests
 
         // Repete o último código quando a sequência acaba
         public string Generate() => codes[Math.Min(Calls++, codes.Length - 1)];
-    }
-
-    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
     }
 
     private sealed class FakeLinkRepository : ILinkRepository

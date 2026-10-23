@@ -51,6 +51,11 @@ public static class LinkEndpoints
                 title: "Link não encontrado",
                 detail: ResolveLinkResult.NotFound.Error),
 
+            ResolveLinkResult.Expired => TypedResults.Problem(
+                statusCode: StatusCodes.Status410Gone,
+                title: "Link expirado",
+                detail: ResolveLinkResult.Expired.Error),
+
             _ => throw new UnreachableException()
         };
     }
@@ -62,7 +67,7 @@ public static class LinkEndpoints
         CancellationToken cancellationToken)
     {
         var result = await linkService.CreateAsync(
-            new CreateLinkCommand(request.TargetUrl, request.Code), cancellationToken);
+            new CreateLinkCommand(request.TargetUrl, request.Code, request.ExpiresOn), cancellationToken);
 
         switch (result)
         {
@@ -90,7 +95,8 @@ public static class LinkEndpoints
     }
 }
 
-public record CreateLinkRequest(string? TargetUrl, string? Code);
+// ExpiresOn chega como texto para a validação do formato ficar no serviço (D-09)
+public record CreateLinkRequest(string? TargetUrl, string? Code, string? ExpiresOn);
 
 public record CreateLinkResponse(string ShortUrl, string Code);
 
