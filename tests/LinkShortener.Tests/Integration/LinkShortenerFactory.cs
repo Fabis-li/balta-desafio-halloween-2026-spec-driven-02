@@ -15,6 +15,8 @@ public class LinkShortenerFactory : WebApplicationFactory<Program>
 
     public ManualTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 10, 31, 12, 0, 0, TimeSpan.Zero));
 
+    public SelectCommandCounter Selects { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:Default", $"Data Source={_databasePath}");
@@ -23,6 +25,8 @@ public class LinkShortenerFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
+
+            services.ConfigureDbContext<AppDbContext>(options => options.AddInterceptors(Selects));
         });
     }
 

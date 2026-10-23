@@ -316,6 +316,12 @@ public class LinkServiceTests
         public Task<Link?> FindByCodeAsync(string code, CancellationToken cancellationToken) =>
             Task.FromResult(Links.SingleOrDefault(link => link.Code == code));
 
+        public Task<RedirectTarget?> FindRedirectTargetAsync(string code, CancellationToken cancellationToken) =>
+            Task.FromResult(Links
+                .Where(link => link.Code == code)
+                .Select(link => new RedirectTarget(link.TargetUrl, link.ExpiresAtUtc))
+                .SingleOrDefault());
+
         public Task IncrementAccessCountAsync(string code, CancellationToken cancellationToken)
         {
             foreach (var link in Links.Where(link => link.Code == code))

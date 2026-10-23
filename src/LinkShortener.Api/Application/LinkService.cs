@@ -52,19 +52,19 @@ public class LinkService(ILinkRepository repository, ICodeGenerator codeGenerato
     // RF-04: acesso ao link curto leva ao destino
     public async Task<ResolveLinkResult> ResolveAsync(string code, CancellationToken cancellationToken)
     {
-        var link = await repository.FindByCodeAsync(code, cancellationToken);
+        var target = await repository.FindRedirectTargetAsync(code, cancellationToken);
 
-        if (link is null)
+        if (target is null)
             return new ResolveLinkResult.NotFound();
 
-        // RN-03: link expirado não redireciona e não conta acesso
-        if (IsExpired(link.ExpiresAtUtc))
+        // RN-03: link expirado não redireciona e não conta acesso, mesmo vindo do cache (D-06)
+        if (IsExpired(target.ExpiresAtUtc))
             return new ResolveLinkResult.Expired();
 
         // RF-05, RN-04: todo acesso válido conta, inclusive repetido ou automatizado
         await repository.IncrementAccessCountAsync(code, cancellationToken);
 
-        return new ResolveLinkResult.Found(link.TargetUrl);
+        return new ResolveLinkResult.Found(target.TargetUrl);
     }
 
     // RF-07: qualquer pessoa que conheça o código consulta o total, sem contar como acesso

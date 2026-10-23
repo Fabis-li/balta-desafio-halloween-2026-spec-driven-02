@@ -6,6 +6,8 @@ public interface ILinkRepository
 
     Task<Link?> FindByCodeAsync(string code, CancellationToken cancellationToken);
 
+    Task<RedirectTarget?> FindRedirectTargetAsync(string code, CancellationToken cancellationToken);
+
     // D-02: incremento feito pelo banco, sem ler e regravar o valor
     Task IncrementAccessCountAsync(string code, CancellationToken cancellationToken);
 

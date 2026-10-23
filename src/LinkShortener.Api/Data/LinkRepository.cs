@@ -14,6 +14,12 @@ public class LinkRepository(AppDbContext dbContext) : ILinkRepository
     public Task<Link?> FindByCodeAsync(string code, CancellationToken cancellationToken) =>
         dbContext.Links.AsNoTracking().SingleOrDefaultAsync(link => link.Code == code, cancellationToken);
 
+    public Task<RedirectTarget?> FindRedirectTargetAsync(string code, CancellationToken cancellationToken) =>
+        dbContext.Links
+            .Where(link => link.Code == code)
+            .Select(link => new RedirectTarget(link.TargetUrl, link.ExpiresAtUtc))
+            .SingleOrDefaultAsync(cancellationToken);
+
     // UPDATE Links SET AccessCount = AccessCount + 1 WHERE Code = @code
     public Task IncrementAccessCountAsync(string code, CancellationToken cancellationToken) =>
         dbContext.Links
