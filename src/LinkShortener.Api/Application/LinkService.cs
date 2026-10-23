@@ -47,6 +47,16 @@ public class LinkService(ILinkRepository repository, ICodeGenerator codeGenerato
         return new ResolveLinkResult.Found(link.TargetUrl);
     }
 
+    // RF-07: qualquer pessoa que conheça o código consulta o total, sem contar como acesso
+    public async Task<GetLinkStatsResult> GetStatsAsync(string code, CancellationToken cancellationToken)
+    {
+        var link = await repository.FindByCodeAsync(code, cancellationToken);
+
+        return link is null
+            ? new GetLinkStatsResult.NotFound()
+            : new GetLinkStatsResult.Found(link.Code, link.AccessCount);
+    }
+
     private async Task<CreateLinkResult> CreateWithCustomCodeAsync(
         string targetUrl, string code, CancellationToken cancellationToken)
     {

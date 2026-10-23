@@ -183,6 +183,30 @@ public class LinkServiceTests
         Assert.Equal(3, link.AccessCount);
     }
 
+    [Fact]
+    public async Task GetStatsAsync_WithExistingCode_ReturnsAccessCountWithoutCountingAnAccess()
+    {
+        _repository.Links.Add(new Link { Code = "PROMO", TargetUrl = ValidUrl, AccessCount = 42 });
+        var service = CreateService("ABC1234");
+
+        var found = Assert.IsType<GetLinkStatsResult.Found>(
+            await service.GetStatsAsync("PROMO", CancellationToken.None));
+
+        Assert.Equal("PROMO", found.Code);
+        Assert.Equal(42, found.AccessCount);
+        Assert.Equal(42, _repository.Links.Single().AccessCount);
+    }
+
+    [Fact]
+    public async Task GetStatsAsync_WithUnknownCode_ReturnsNotFound()
+    {
+        var service = CreateService("ABC1234");
+
+        var result = await service.GetStatsAsync("NAOEXISTE", CancellationToken.None);
+
+        Assert.IsType<GetLinkStatsResult.NotFound>(result);
+    }
+
     private LinkService CreateService(params string[] codes) =>
         new(_repository, new SequenceCodeGenerator(codes), new FixedTimeProvider(Now));
 

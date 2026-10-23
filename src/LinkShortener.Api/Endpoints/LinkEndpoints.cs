@@ -10,8 +10,29 @@ public static class LinkEndpoints
     {
         app.MapPost("/api/links", CreateLinkAsync);
         app.MapGet("/{code}", RedirectAsync);
+        app.MapGet("/api/links/{code}/stats", GetStatsAsync);
 
         return app;
+    }
+
+    private static async Task<Results<Ok<LinkStatsResponse>, ProblemHttpResult>> GetStatsAsync(
+        string code,
+        LinkService linkService,
+        CancellationToken cancellationToken)
+    {
+        var result = await linkService.GetStatsAsync(code, cancellationToken);
+
+        return result switch
+        {
+            GetLinkStatsResult.Found found => TypedResults.Ok(new LinkStatsResponse(found.Code, found.AccessCount)),
+
+            GetLinkStatsResult.NotFound => TypedResults.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Link não encontrado",
+                detail: GetLinkStatsResult.NotFound.Error),
+
+            _ => throw new UnreachableException()
+        };
     }
 
     private static async Task<Results<RedirectHttpResult, ProblemHttpResult>> RedirectAsync(
@@ -72,3 +93,5 @@ public static class LinkEndpoints
 public record CreateLinkRequest(string? TargetUrl, string? Code);
 
 public record CreateLinkResponse(string ShortUrl, string Code);
+
+public record LinkStatsResponse(string Code, long AccessCount);
