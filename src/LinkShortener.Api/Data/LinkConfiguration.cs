@@ -32,9 +32,5 @@ public class LinkConfiguration : IEntityTypeConfiguration<Link>
         builder.Property(link => link.AccessCount)
             .IsRequired()
             .HasDefaultValue(0L);
-
-        // D-05: apenas o hash da chave de gerenciamento é persistido
-        builder.Property(link => link.ManagementKeyHash)
-            .IsRequired();
     }
 }

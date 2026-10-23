@@ -11,5 +11,4 @@ public class Link
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? ExpiresAtUtc { get; set; }
     public long AccessCount { get; set; }
-    public string ManagementKeyHash { get; set; } = string.Empty;
 }

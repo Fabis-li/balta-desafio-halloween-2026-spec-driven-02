@@ -39,10 +39,6 @@ namespace LinkShortener.Api.Data.Migrations
                     b.Property<DateTime?>("ExpiresAtUtc")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("ManagementKeyHash")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("TargetUrl")
                         .IsRequired()
                         .HasMaxLength(2048)

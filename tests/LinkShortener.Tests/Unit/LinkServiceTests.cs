@@ -29,19 +29,6 @@ public class LinkServiceTests
         Assert.NotEqual(Guid.Empty, stored.Id);
     }
 
-    [Fact]
-    public async Task CreateAsync_StoresOnlyTheHashOfTheManagementKey()
-    {
-        var service = CreateService("ABC1234");
-
-        var created = Assert.IsType<CreateLinkResult.Created>(
-            await service.CreateAsync(ValidUrl, CancellationToken.None));
-
-        Assert.False(string.IsNullOrWhiteSpace(created.ManagementKey));
-        Assert.NotEqual(created.ManagementKey, created.Link.ManagementKeyHash);
-        Assert.Equal(ManagementKey.Hash(created.ManagementKey), created.Link.ManagementKeyHash);
-    }
-
     [Theory]
     [InlineData(null)]
     [InlineData("ftp://example.com")]

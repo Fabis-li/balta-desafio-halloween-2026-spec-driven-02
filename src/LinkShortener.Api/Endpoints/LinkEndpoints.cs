@@ -27,7 +27,7 @@ public static class LinkEndpoints
                 var shortUrl = $"{httpRequest.Scheme}://{httpRequest.Host}/{created.Link.Code}";
                 return TypedResults.Created(
                     shortUrl,
-                    new CreateLinkResponse(shortUrl, created.Link.Code, created.ManagementKey));
+                    new CreateLinkResponse(shortUrl, created.Link.Code));
 
             case CreateLinkResult.Invalid invalid:
                 return TypedResults.ValidationProblem(new Dictionary<string, string[]>
@@ -43,4 +43,4 @@ public static class LinkEndpoints
 
 public record CreateLinkRequest(string? TargetUrl);
 
-public record CreateLinkResponse(string ShortUrl, string Code, string ManagementKey);
+public record CreateLinkResponse(string ShortUrl, string Code);

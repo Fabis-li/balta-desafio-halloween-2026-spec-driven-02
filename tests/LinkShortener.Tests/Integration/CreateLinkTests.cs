@@ -22,13 +22,11 @@ public class CreateLinkTests(LinkShortenerFactory factory) : IClassFixture<LinkS
         Assert.NotNull(body);
         Assert.Matches("^[A-Z1-9]{7}$", body.Code);
         Assert.Equal($"http://localhost/{body.Code}", body.ShortUrl);
-        Assert.False(string.IsNullOrWhiteSpace(body.ManagementKey));
         Assert.Equal(new Uri(body.ShortUrl), response.Headers.Location);
 
         var stored = await factory.QueryDatabaseAsync(db => db.Links.SingleAsync(link => link.Code == body.Code));
         Assert.Equal("https://example.com/pagina", stored.TargetUrl);
         Assert.Equal(0, stored.AccessCount);
-        Assert.Equal(ManagementKey.Hash(body.ManagementKey), stored.ManagementKeyHash);
     }
 
     [Fact]
@@ -38,7 +36,6 @@ public class CreateLinkTests(LinkShortenerFactory factory) : IClassFixture<LinkS
         var second = await PostAndReadAsync("https://example.com/repetida");
 
         Assert.NotEqual(first.Code, second.Code);
-        Assert.NotEqual(first.ManagementKey, second.ManagementKey);
     }
 
     [Theory]

@@ -9,8 +9,6 @@ public class LinkService(ILinkRepository repository, ICodeGenerator codeGenerato
         if (!TargetUrlValidator.IsValid(targetUrl, out var error))
             return new CreateLinkResult.Invalid(error);
 
-        var managementKey = ManagementKey.Generate();
-
         // RN-06: código automático já em uso gera outra tentativa
         for (var attempt = 0; attempt < MaxCodeAttempts; attempt++)
         {
@@ -24,12 +22,11 @@ public class LinkService(ILinkRepository repository, ICodeGenerator codeGenerato
                 Id = Guid.NewGuid(),
                 Code = code,
                 TargetUrl = targetUrl!,
-                CreatedAtUtc = timeProvider.GetUtcNow().UtcDateTime,
-                ManagementKeyHash = ManagementKey.Hash(managementKey)
+                CreatedAtUtc = timeProvider.GetUtcNow().UtcDateTime
             };
 
             if (await repository.TryAddAsync(link, cancellationToken))
-                return new CreateLinkResult.Created(link, managementKey);
+                return new CreateLinkResult.Created(link);
         }
 
         throw new InvalidOperationException(
