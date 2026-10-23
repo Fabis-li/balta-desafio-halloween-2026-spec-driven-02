@@ -144,6 +144,31 @@ public class LinkServiceTests
             () => service.CreateAsync(new(ValidUrl), CancellationToken.None));
     }
 
+    [Fact]
+    public async Task ResolveAsync_WithExistingCode_ReturnsTargetUrl()
+    {
+        _repository.Links.Add(new Link { Code = "PROMO", TargetUrl = ValidUrl });
+        var service = CreateService("ABC1234");
+
+        var found = Assert.IsType<ResolveLinkResult.Found>(
+            await service.ResolveAsync("PROMO", CancellationToken.None));
+
+        Assert.Equal(ValidUrl, found.TargetUrl);
+    }
+
+    [Theory]
+    [InlineData("NAOEXISTE")]
+    [InlineData("promo")]
+    public async Task ResolveAsync_WithUnknownCode_ReturnsNotFound(string code)
+    {
+        _repository.Links.Add(new Link { Code = "PROMO", TargetUrl = ValidUrl });
+        var service = CreateService("ABC1234");
+
+        var result = await service.ResolveAsync(code, CancellationToken.None);
+
+        Assert.IsType<ResolveLinkResult.NotFound>(result);
+    }
+
     private LinkService CreateService(params string[] codes) =>
         new(_repository, new SequenceCodeGenerator(codes), new FixedTimeProvider(Now));
 
@@ -169,6 +194,9 @@ public class LinkServiceTests
 
         public Task<bool> CodeExistsAsync(string code, CancellationToken cancellationToken) =>
             Task.FromResult(Links.Any(link => link.Code == code));
+
+        public Task<Link?> FindByCodeAsync(string code, CancellationToken cancellationToken) =>
+            Task.FromResult(Links.SingleOrDefault(link => link.Code == code));
 
         public Task<bool> TryAddAsync(Link link, CancellationToken cancellationToken)
         {

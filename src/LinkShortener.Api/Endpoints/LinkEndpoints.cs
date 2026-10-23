@@ -9,8 +9,29 @@ public static class LinkEndpoints
     public static IEndpointRouteBuilder MapLinkEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/api/links", CreateLinkAsync);
+        app.MapGet("/{code}", RedirectAsync);
 
         return app;
+    }
+
+    private static async Task<Results<RedirectHttpResult, ProblemHttpResult>> RedirectAsync(
+        string code,
+        LinkService linkService,
+        CancellationToken cancellationToken)
+    {
+        var result = await linkService.ResolveAsync(code, cancellationToken);
+
+        return result switch
+        {
+            ResolveLinkResult.Found found => TypedResults.Redirect(found.TargetUrl),
+
+            ResolveLinkResult.NotFound => TypedResults.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Link não encontrado",
+                detail: ResolveLinkResult.NotFound.Error),
+
+            _ => throw new UnreachableException()
+        };
     }
 
     private static async Task<Results<Created<CreateLinkResponse>, ValidationProblem, ProblemHttpResult>> CreateLinkAsync(

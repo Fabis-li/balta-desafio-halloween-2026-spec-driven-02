@@ -33,6 +33,16 @@ public class LinkService(ILinkRepository repository, ICodeGenerator codeGenerato
             $"Não foi possível gerar um código único após {MaxCodeAttempts} tentativas.");
     }
 
+    // RF-04: acesso ao link curto leva ao destino
+    public async Task<ResolveLinkResult> ResolveAsync(string code, CancellationToken cancellationToken)
+    {
+        var link = await repository.FindByCodeAsync(code, cancellationToken);
+
+        return link is null
+            ? new ResolveLinkResult.NotFound()
+            : new ResolveLinkResult.Found(link.TargetUrl);
+    }
+
     private async Task<CreateLinkResult> CreateWithCustomCodeAsync(
         string targetUrl, string code, CancellationToken cancellationToken)
     {

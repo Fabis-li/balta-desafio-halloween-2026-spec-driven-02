@@ -11,6 +11,9 @@ public class LinkRepository(AppDbContext dbContext) : ILinkRepository
     public Task<bool> CodeExistsAsync(string code, CancellationToken cancellationToken) =>
         dbContext.Links.AnyAsync(link => link.Code == code, cancellationToken);
 
+    public Task<Link?> FindByCodeAsync(string code, CancellationToken cancellationToken) =>
+        dbContext.Links.AsNoTracking().SingleOrDefaultAsync(link => link.Code == code, cancellationToken);
+
     public async Task<bool> TryAddAsync(Link link, CancellationToken cancellationToken)
     {
         dbContext.Links.Add(link);
